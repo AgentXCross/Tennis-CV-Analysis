@@ -6,3 +6,4 @@ models
 training/data
 training/tennis_court_det_dataset.zip
 __pycache__
+.DS_Store
