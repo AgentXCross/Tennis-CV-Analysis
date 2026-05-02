@@ -1,6 +1,8 @@
 from utils import (save_video, 
                    read_video)
 from trackers import PlayerTracker, BallTracker
+from court_line_detector import CourtLineDetector
+import cv2
 
 def main():
     # Read Video
@@ -17,14 +19,27 @@ def main():
     )
     ball_detections = ball_tracker.detect_frames(
         video_frames,
-        read_from_stub = False,
+        read_from_stub = True,
         stub_path = "tracker_stubs/ball_detections.pkl"
     )
+    ball_detections = ball_tracker.interpolate_ball_positions(ball_detections)
 
+    # Detect Court Keypoints
+    court_model_path = "models/keypoints_model.pt"
+    court_line_detector = CourtLineDetector(court_model_path)
+    court_keypoints = court_line_detector.predict(video_frames[0])
+
+    # Choose the 2 Players
+    player_detections = player_tracker.choose_and_filter_players(court_keypoints, player_detections)
 
     # Draw Outputs
     output_video_frames = player_tracker.draw_bboxes(video_frames, player_detections)
     output_video_frames = ball_tracker.draw_bboxes(output_video_frames, ball_detections)
+    output_video_frames = court_line_detector.draw_keypoints_on_video(output_video_frames, court_keypoints)
+
+    # Draw Frame Number
+    for i, frame in enumerate(output_video_frames):
+        cv2.putText(frame, f"Frame #{i + 1}", (50, 170), cv2.FONT_HERSHEY_TRIPLEX, 2, (1, 255, 214), 5)
 
     # Save Outputs
     save_video(output_video_frames, "output-videos/output_video.avi", fps)
