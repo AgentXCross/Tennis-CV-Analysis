@@ -102,7 +102,13 @@ class MiniCourt():
             start_point = (int(self.drawing_key_points[line[0] * 2]), int(self.drawing_key_points[line[0] * 2 + 1]))
             end_point = (int(self.drawing_key_points[line[1] * 2]), int(self.drawing_key_points[line[1] * 2 + 1]))
             cv2.line(frame, start_point, end_point, (0, 0, 0), 3)
-            
+
+        # Draw Net
+        net_start_point = (self.drawing_key_points[0], int((self.drawing_key_points[1] + self.drawing_key_points[5]) / 2))
+        net_end_point = (self.drawing_key_points[2], int((self.drawing_key_points[1] + self.drawing_key_points[5]) / 2))
+        cv2.line(frame, net_start_point, net_end_point, (255, 10, 0), 3)
+
+        # Draw Keypoints on Mini-Court
         for i in range(0, len(self.drawing_key_points), 2):
             x = int(self.drawing_key_points[i])
             y = int(self.drawing_key_points[i + 1])
@@ -126,3 +132,12 @@ class MiniCourt():
             frame = self.draw_court(frame)
             output_frames.append(frame)
         return output_frames
+    
+    def get_start_point_of_mini_court(self):
+        return (self.court_start_x, self.court_start_y)
+    
+    def get_width_of_mini_court(self):
+        return self.court_width
+    
+    def get_court_keypoints(self):
+        return self.drawing_key_points
