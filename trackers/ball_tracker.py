@@ -2,6 +2,8 @@ from ultralytics import YOLO
 import cv2
 import pickle
 import pandas as pd
+import numpy as np
+from scipy.signal import find_peaks
 
 class BallTracker:
     def __init__(self, model_path):
@@ -18,6 +20,43 @@ class BallTracker:
         ball_positions = [{1:x} for x in df_ball_positions.to_numpy().tolist()]
 
         return ball_positions
+    
+    def get_ball_shot_frames(self, ball_positions, player_detections):
+        ball_positions = [x.get(1, []) for x in ball_positions]
+        df_ball_positions = pd.DataFrame(ball_positions, columns = ['x1', 'y1', 'x2', 'y2'])
+        df_ball_positions = df_ball_positions.interpolate()
+        df_ball_positions = df_ball_positions.bfill()
+
+        df_ball_positions['mid_x'] = (df_ball_positions['x1'] + df_ball_positions['x2']) / 2
+        df_ball_positions['mid_y'] = (df_ball_positions['y1'] + df_ball_positions['y2']) / 2
+
+        # Build player position DataFrame, one row per frame, one column set per player
+        player_ids = list(player_detections[0].keys())
+        rows = []
+        for frame in player_detections:
+            row = {}
+            for pid, bbox in frame.items():
+                row[f'p{pid}_cx'] = (bbox[0] + bbox[2]) / 2
+                row[f'p{pid}_cy'] = (bbox[1] + bbox[3]) / 2
+            rows.append(row)
+        df_players = pd.DataFrame(rows).interpolate().bfill()
+
+        bx = df_ball_positions['mid_x'].values
+        by = df_ball_positions['mid_y'].values
+
+        # Distance from ball to each player per frame
+        dists = []
+        for pid in player_ids:
+            dx = bx - df_players[f'p{pid}_cx'].values
+            dy = by - df_players[f'p{pid}_cy'].values
+            dists.append((dx ** 2 + dy ** 2) ** 0.5)
+
+        # Closest player distance per frame
+        min_dist = pd.Series(np.minimum(*dists))
+
+        # Find local minima
+        peaks, _ = find_peaks(-min_dist, prominence = 50, distance = 15)
+        return list(peaks)
 
     def detect_frames(self, frames, read_from_stub = False, stub_path = None):
         ball_detections = []
