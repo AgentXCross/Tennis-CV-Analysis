@@ -17,12 +17,9 @@ class BallTracker:
         df_ball_positions = df_ball_positions.interpolate()
         df_ball_positions = df_ball_positions.bfill() # Ensure the first frame has a detection
 
-        ball_positions = [{1:x} for x in df_ball_positions.to_numpy().tolist()]
-
-        return ball_positions
+        return df_ball_positions.to_numpy().tolist()
     
     def get_ball_shot_frames(self, ball_positions, player_detections):
-        ball_positions = [x.get(1, []) for x in ball_positions]
         df_ball_positions = pd.DataFrame(ball_positions, columns = ['x1', 'y1', 'x2', 'y2'])
         df_ball_positions = df_ball_positions.interpolate()
         df_ball_positions = df_ball_positions.bfill()
@@ -89,24 +86,17 @@ class BallTracker:
 
     def draw_bboxes(self, video_frames, ball_detections):
         output_video_frames = []
-        for frame, ball_dict in zip(video_frames, ball_detections):
-            # Draw Bounding Boxes
-            for track_id, bbox in ball_dict.items():
+        for frame, bbox in zip(video_frames, ball_detections):
+            if bbox:
                 x1, y1, x2, y2 = bbox
-                cv2.putText(frame, 
-                            f"Ball", (int(bbox[0]), int(bbox[1] - 10)),
+                cv2.putText(frame,
+                            "Ball", (int(x1), int(y1 - 10)),
                             cv2.FONT_HERSHEY_TRIPLEX,
                             0.9,
                             (1, 255, 214),
                             2
                 )
-                cv2.rectangle(
-                    frame, 
-                    (int(x1), int(y1)),
-                    (int(x2), int(y2)),
-                    (1, 255, 214),
-                    2
-                )
+                cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (1, 255, 214), 2)
             output_video_frames.append(frame)
         return output_video_frames
 

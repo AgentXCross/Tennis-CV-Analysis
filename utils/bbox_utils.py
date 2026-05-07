@@ -25,11 +25,11 @@ def get_closest_keypoint_index(point, keypoints, keypoint_indices):
         if distance < closest_distance:
             closest_distance = distance
             keypoint_index = index
-    return index
+    return keypoint_index
 
 def get_height_of_bbox(bbox):
     _, y1, _, y2 = bbox
     return abs(y2 - y1)
 
-def measure_xy_distance(p1, p2): #
-    return (abs(p1[0] - p2[0]), abs(p1[1] - p2[1]))
+def measure_xy_distance(p1, p2): 
+    return (p1[0] - p2[0], p1[1] - p2[1])

@@ -1,8 +1,13 @@
-from utils import (save_video, 
-                   read_video)
+from utils import (
+    save_video,
+    read_video,
+    measure_distance,
+    get_center_bbox
+)
 from trackers import PlayerTracker, BallTracker
 from court_line_detector import CourtLineDetector
 from minicourt import MiniCourt
+import court_dimension_constants
 import cv2
 
 def main():
@@ -23,35 +28,61 @@ def main():
         read_from_stub = True,
         stub_path = "tracker_stubs/ball_detections.pkl"
     )
+    ## ball_detections is a list of lists where each element is [x1, y1, x2, y2]
     ball_detections = ball_tracker.interpolate_ball_positions(ball_detections)
 
     # Detect Court Keypoints
     court_model_path = "models/keypoints_model.pt"
     court_line_detector = CourtLineDetector(court_model_path)
-    court_keypoints = court_line_detector.predict(video_frames[0])
+    ## court_keypoints is a list of 28 values
+    ## Every 2 values corresponds to one keypoint on the court
+    n = len(video_frames)
+    ## Predict keypoints on 4 separate frames and average
+    sample_frames = [video_frames[i] for i in [0, n // 3, 2 * n // 3, n - 1]]
+    court_keypoints = court_line_detector.predict_average(sample_frames)
 
     # Choose the 2 Players
+    ## player_detections is a list of dictionaries
+    ## player_ids is a tuple with 2 elements representing the ids of the 2 players
+    ## Each dictionairy corresponds to a frame, player_id's are the keys
     player_detections = player_tracker.choose_and_filter_players(court_keypoints, player_detections)
+    player_ids = player_detections[0].keys()
 
     # Mini-Court
     mini_court = MiniCourt(video_frames[0])
 
     # Detect Ball Shots
+    ## ball_shot_frames is a list of frames where the ball was shot
     ball_shot_frames = ball_tracker.get_ball_shot_frames(ball_detections, player_detections)
+    ## shot_types is a list of ["forehand", "backhand", "serve"] corresponding to each shot from the ball_shot_frames
+    shot_types = ...
 
     # Convert Positions to Mini-Court Positions
-    player_mini_court_detections, ball_mini_court_detection = mini_court.convert_bbox_to_mini_court_coords(player_detections, ball_detections, court_keypoints)
+    ## player_mini_court_detections is a list of dict. Keys are player_ids and values are coordinates on the mini-court
+    ## ball_mini_court_detections is a list of tuples. 
+    player_mini_court_detections, ball_mini_court_detections = mini_court.convert_bbox_to_mini_court_coords(player_detections, ball_detections, court_keypoints)
+
+    # Shot Stats
+    ## player_shots_data is a list of dicts with keys: frame, player_who_hit, ball_speed_kmh
+    player_shots_data = mini_court.get_shot_stats(ball_shot_frames, player_mini_court_detections, ball_mini_court_detections, fps)
+
+    # Player Speed Stats
+    ## player_speed_stats is a list of dicts with keys: frame, player_1_speed_kmh, player_2_speed_kmh
+    player_speed_stats = mini_court.get_player_speed_stats(player_mini_court_detections, fps, 20)
 
     # Draw Outputs
     output_video_frames = player_tracker.draw_bboxes(video_frames, player_detections)
     output_video_frames = ball_tracker.draw_bboxes(output_video_frames, ball_detections)
     output_video_frames = court_line_detector.draw_keypoints_on_video(output_video_frames, court_keypoints)
     output_video_frames = mini_court.draw_mini_court(output_video_frames)
+    output_video_frames = mini_court.draw_players_on_mini_court(output_video_frames, player_mini_court_detections, (140, 0, 236))
+    output_video_frames = mini_court.draw_ball_on_mini_court(output_video_frames, ball_mini_court_detections, (1, 255, 214))
+    output_video_frames = mini_court.draw_stats(output_video_frames, player_shots_data, player_speed_stats, player_ids)
 
     # Draw Frame Number
     for i, frame in enumerate(output_video_frames):
         cv2.putText(frame, f"Frame #{i + 1}", (50, 170), cv2.FONT_HERSHEY_TRIPLEX, 2, (1, 255, 214), 5)
-
+        
     # Save Outputs
     save_video(output_video_frames, "output-videos/output_video.avi", fps)
 
