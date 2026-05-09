@@ -164,14 +164,54 @@ class PoseEstimator:
             legs_crossed,       # 16
         ], dtype = np.float32)
 
-    def classify_shots(self, video_frames, ball_shot_frames, classifier):
+    def classify_shots(self, video_frames, ball_shot_frames, player_detections, ball_detections, classifier):
         """
-        Runs pose estimation on each ball hit frame and returns a list of predicted
-        shot type strings aligned with ball_shot_frames. Frames where no pose is
-        detected return 'unknown'.
+        For each ball hit frame, samples up to 7 frames (frame - 3 to frame + 3), crops the hitting
+        player, runs pose estimation on each crop, and majority-votes the shot type.
+        Returns 'unknown' only if no pose is detected in any of the 7 frames.
+        Ties are broken randomly.
         """
+        import random
+        from collections import Counter
+
+        n = len(video_frames)
         shot_types = []
+        hitting_player_ids = []
+
         for frame_num in ball_shot_frames:
-            keypoints = self.get_keypoints(video_frames[frame_num])
-            shot_types.append(classifier.predict(keypoints) if keypoints is not None else "unknown")
-        return shot_types
+            ball_box = ball_detections[frame_num]
+            ball_cx = (ball_box[0] + ball_box[2]) / 2
+            ball_cy = (ball_box[1] + ball_box[3]) / 2
+
+            frame_players = player_detections[frame_num]
+            hitting_player_id = min(
+                frame_players.keys(),
+                key = lambda pid: (
+                    ((frame_players[pid][0] + frame_players[pid][2]) / 2 - ball_cx) ** 2 +
+                    ((frame_players[pid][1] + frame_players[pid][3]) / 2 - ball_cy) ** 2
+                )
+            )
+            hitting_player_ids.append(hitting_player_id)
+
+            votes = []
+            for f in range(max(0, frame_num - 3), min(n, frame_num + 4)):
+                player_box = player_detections[f].get(hitting_player_id)
+                if player_box is None:
+                    continue
+                x1, y1, x2, y2 = int(player_box[0]), int(player_box[1]), int(player_box[2]), int(player_box[3])
+                crop = video_frames[f][max(0, y1):y2, max(0, x1):x2]
+                if crop.size == 0:
+                    continue
+                keypoints = self.get_keypoints(crop)
+                if keypoints is not None:
+                    votes.append(classifier.predict(keypoints))
+
+            if not votes:
+                shot_types.append('unknown')
+            else:
+                count = Counter(votes)
+                max_count = max(count.values())
+                candidates = [s for s, c in count.items() if c == max_count]
+                shot_types.append(random.choice(candidates))
+
+        return shot_types, hitting_player_ids

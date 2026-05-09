@@ -71,6 +71,26 @@ class PlayerTracker:
             
         return player_dict
 
+    def draw_shot_types(self, video_frames, player_detections, ball_shot_frames, shot_types, hitting_player_ids):
+        active = {}  # frame_num -> (player_id, shot_type)
+        for shot_frame, shot_type, player_id in zip(ball_shot_frames, shot_types, hitting_player_ids):
+            for f in range(max(0, shot_frame - 5), min(len(video_frames), shot_frame + 6)):
+                active[f] = (player_id, shot_type)
+
+        for frame_num, (frame, player_dict) in enumerate(zip(video_frames, player_detections)):
+            if frame_num in active:
+                player_id, shot_type = active[frame_num]
+                bbox = player_dict.get(player_id)
+                if bbox is not None:
+                    cv2.putText(frame,
+                                shot_type, (int(bbox[0]), int(bbox[3] + 25)),
+                                cv2.FONT_HERSHEY_TRIPLEX,
+                                0.9,
+                                (140, 0, 236),
+                                2
+                    )
+        return video_frames
+
     def draw_bboxes(self, video_frames, player_detections):
         output_video_frames = []
         for frame, player_dict in zip(video_frames, player_detections):

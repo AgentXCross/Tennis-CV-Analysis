@@ -91,7 +91,8 @@ class MiniCourt():
             (0, 1),
             (8, 9),
             (10, 11),
-            (2, 3)
+            (2, 3),
+            (12, 13),
         ]
 
     def set_mini_court_position(self):
