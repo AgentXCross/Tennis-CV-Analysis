@@ -1,6 +1,6 @@
 # Computer Vision for Tennis Analytics using YOLO, ResNet, Pose Estimation, and XGBoost
 
-<video src="output-videos/sinner_zverev_output.mp4" width="100%" controls></video>
+![Demo](output-videos/sinner_zverev_output.gif)
 
 A computer vision system for analyzing tennis footage, tracking players and the ball, detecting and classifying shot types, and overlaying stats on a mini-court diagram.
 
