@@ -58,3 +58,7 @@ All 15 features are handedness-agnostic (no left/right assumptions).
 
 15. Wrist average height minus elbow average height
     (avg wrist y) - (avg elbow y), sign-flipped so positive = wrists above elbows.
+
+16. Legs crossed (0 or 1)
+    1 if the knee x-ordering is opposite to the hip x-ordering, meaning the knees
+    have crossed the body midline.

@@ -23,12 +23,20 @@ def _line_angle(p1, p2):
     """Angle in degrees of the line p1 to p2 from horizontal."""
     return np.degrees(np.arctan2(p2[1] - p1[1], p2[0] - p1[0]))
 
+def _apply_clahe(img_rgb):
+    """Boost local contrast via CLAHE on the L channel in LAB space."""
+    lab = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2LAB)
+    clahe = cv2.createCLAHE(clipLimit = 3.0, tileGridSize = (2, 2))
+    lab[:, :, 0] = clahe.apply(lab[:, :, 0])
+    return cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
+
 class PoseEstimator:
     # MediaPipe landmark indices
     L_SHOULDER, R_SHOULDER = 11, 12
     L_ELBOW, R_ELBOW = 13, 14
     L_WRIST, R_WRIST = 15, 16
     L_HIP, R_HIP = 23, 24
+    L_KNEE, R_KNEE = 25, 26
 
     def __init__(self, model_path = MODEL_PATH):
         base_options = mp_python.BaseOptions(model_asset_path = model_path)
@@ -38,14 +46,16 @@ class PoseEstimator:
     def _to_rgb(self, frame):
         """Accepts a BGR numpy array, RGB numpy array, or file path."""
         if isinstance(frame, str):
-            return np.array(Image.open(frame).convert('RGB'))
-        if frame.shape[2] == 3:
-            return cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        return frame
+            img = np.array(Image.open(frame).convert('RGB'))
+        elif frame.shape[2] == 3:
+            img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        else:
+            img = frame
+        return _apply_clahe(img)
 
     def get_keypoints(self, frame):
         """
-        Runs MediaPipe Pose on a frame and returns a 15-feature vector for shot
+        Runs MediaPipe Pose on a frame and returns a 16-feature vector for shot
         classification. Returns None if no pose is detected.
         See features.txt for full feature descriptions and normalization details.
         """
@@ -77,6 +87,8 @@ class PoseEstimator:
         rw = kps[self.R_WRIST]
         lh = kps[self.L_HIP]
         rh = kps[self.R_HIP]
+        lk = kps[self.L_KNEE]
+        rk = kps[self.R_KNEE]
         mid_s = (ls + rs) / 2
 
         l_ext = np.linalg.norm(lw - ls)
@@ -130,6 +142,9 @@ class PoseEstimator:
         # 15. Average wrist height minus average elbow height
         wrist_vs_elbow = -((lw[1] + rw[1]) / 2 - (le[1] + re[1]) / 2)
 
+        # 16. Legs crossed: 1 if knee x-ordering is opposite to hip x-ordering
+        legs_crossed = float((lk[0] - rk[0]) * (lh[0] - rh[0]) < 0)
+
         return np.array([
             max_wrist_height,   # 1
             vert_wrist_sep,     # 2
@@ -146,6 +161,7 @@ class PoseEstimator:
             forearm_angle,      # 13
             elbow_angle_diff,   # 14
             wrist_vs_elbow,     # 15
+            legs_crossed,       # 16
         ], dtype = np.float32)
 
     def classify_shots(self, video_frames, ball_shot_frames, classifier):
